@@ -1,0 +1,140 @@
+#!/bin/bash
+
+declare -a country
+declare -a points
+declare -a goals_scored
+declare -a goals_received
+
+OLDIFS="$IFS"
+IFS=$'\n'
+text=( $(cat "$1") )
+IFS="$OLDIFS"
+
+length=${#text[@]}
+
+for i in $(seq 0 $((${length} - 1)))
+do
+    
+    # Partiotion between : and extraction of 1st part (countries)
+    delind=`expr index "${text[${i}]}" ":"`
+    let delind=delind-1
+    part=`expr substr "${text[${i}]}" 1 ${delind}`
+
+    # Partition between - and extraction of c1 and c2
+    dash_index=`expr index "${part}" "-"`
+    let dash_index=dash_index-1
+    c1=`expr substr "${part}" 1 ${dash_index}`
+    let dash_index=dash_index+2
+    partLength=`expr length "${part}"`
+    c2=`expr substr "${part}" ${dash_index} ${partLength}`
+
+    # Extraction of 2nd part (scores)
+    let delind=delind+2
+    textLength=`expr length "${text[${i}]}"`
+    part=`expr substr "${text[${i}]}" ${delind} ${textLength}`
+    
+    # Partition between - and extraction of s1 and s2
+    dash_index=`expr index "${part}" "-"`
+    let dash_index=dash_index-1
+    s1=`expr substr "${part}" 1 ${dash_index}`
+    let dash_index=dash_index+2
+    partLength=`expr length "${part}"`
+    s2=`expr substr "${part}" ${dash_index} ${partLength}`
+
+    
+    found1=0
+    found2=0
+    index1=-1
+    index2=-1
+    country_length=${#country[@]}
+
+    # Searching country array
+    for i in $(seq 0 $((${country_length} - 1)))
+    do
+
+        # Find if the c1 exists in the table
+        if [ "${country[${i}]}" == "${c1}" ] # Country 1 exists
+        then
+            found1=1
+            index1=`echo "${i}"`
+        fi
+
+        # Find if the c2 exists in the table
+        if [ "${country[${i}]}" == "${c2}" ] # Country 2 exists
+        then
+            found2=1
+            index2=`echo "${i}"`
+        fi   
+    done
+
+
+    # If c1 does not exist
+    if [ ${found1} -eq 0 ] || [ ${country_length} -eq 0 ]
+    then
+        country[country_length]=`echo "${c1}"`
+        index1=`echo "${country_length}"`
+        scores[index1]=0
+        goals_scored[index1]=0
+        goals_received[index1]=0
+        let country_length=country_length+1
+    fi
+
+    # If c1 does not exist
+    if [ ${found2} -eq 0 ]
+    then
+        country[country_length]=`echo "${c2}"`
+        index2=`echo "${country_length}"`    
+        scores[index2]=0
+        goals_scored[index2]=0
+        goals_received[index2]=0
+        let country_length=country_length+1
+    fi
+
+    # Increasing the scores
+    if [ $s1 -gt $s2 ]   # First team wins
+    then
+        let scores[index1]=scores[index1]+3
+
+    elif [ $s1 -lt $s2 ] # Second team wins
+    then
+        let scores[index2]=scores[index2]+3
+       
+    else                 # Tie
+        let scores[index1]=scores[index1]+1
+        let scores[index2]=scores[index2]+1
+
+    fi
+
+    # Increasing the goals_scored and the goals_received
+    let goals_scored[index1]=goals_scored[index1]+s1
+    let goals_received[index1]=goals_received[index1]+s2
+    let goals_scored[index2]=goals_scored[index2]+s2
+    let goals_received[index2]=goals_received[index2]+s1
+done
+
+j=0
+for i in $(seq 0 $((${country_length} - 1)))
+do
+	# Merging the previously calculated arrays
+    echo "${scores[${i}]}":"${country[${i}]}":"${goals_scored[${i}]}"-"${goals_received[${i}]}" >> tmpfile1
+    
+    # Creating the first column of the output
+    let j=j+1
+    echo -e "${j}".'\t' >> tmpfile2
+done
+
+# Sorting based on the points of each country (in case of same points the sorting is based on the country's name)
+sort -d tmpfile1 > tmpfile3
+
+# Rearange the columns
+paste <( cut -f1 tmpfile2 ) <( cut -f2 -d':' --output-delimiter=`echo -ne '\t'` tmpfile3 ) <( cut -f1 -d':' --output-delimiter=`echo -ne '\t'` tmpfile3 ) <( cut -f3 -d':' --output-delimiter=`echo -ne '\t'` tmpfile3 )
+
+# Freeing the memory
+unset country
+unset scores
+unset goals_scored
+unset goals_received
+
+# Removing temporary files
+touch tmpfile2 tmpfile1 tmpfile3
+rm tmpfile2 tmpfile1 tmpfile3

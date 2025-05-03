@@ -1,0 +1,66 @@
+#!/bin/bash
+
+for tmp # For all arguments
+do
+    declare -a x
+    declare -a y
+    
+    text=( $(cat "$1") )
+    length=${#text[@]}
+
+    sum_x=0.0
+    sum_y=0.0
+    sum_xy=0.0
+    sum_x2=0.0
+
+    for i in $(seq 0 $((${length} - 1)))
+    do
+        # Find the index where the delimiter is.
+        delind=`expr index "${text[${i}]}" ":"`
+        # Substring from the first character to (delimiter index - 1).
+        # Vector X
+        let delind=delind-1
+        x[i]=`expr substr "${text[${i}]}" 1 ${delind}`
+        # Substring from the (delimiter index + 1) character to the end.
+        # Vector Y
+        let delind=delind+2
+        textLength=`expr length "${text[${i}]}"`
+        y[i]=`expr substr "${text[${i}]}" ${delind} ${textLength}`
+
+        # Calculate sum_x, sum_y, sum_xy, sum_x2.
+        sum_x=$(echo "scale=2; ${sum_x}+${x[${i}]}" | bc)
+        sum_y=$(echo "scale=2; ${sum_y}+${y[${i}]}" | bc)
+        sum_xy=$(echo "scale=2; ${sum_xy}+(${x[${i}]}*${y[${i}]})" | bc)
+        sum_x2=$(echo "scale=2; ${sum_x2}+(${x[${i}]}*${x[${i}]})" | bc)
+    done
+
+    # Calculate the numerator and the denominator of parameter a.
+    numerator_a=$(echo "scale=2; (${length}*${sum_xy})-(${sum_x}*${sum_y})" | bc)
+    denominator_a=$(echo "scale=2; (${length}*${sum_x2})-(${sum_x}*${sum_x})" | bc)
+
+    # Check if denominator equals 0.
+    if [ ${denominator_a} == 0 ]
+    then
+        echo FILE: "$1", a=N.D. b=N.D. c=N.D. err=N.D.
+    else
+        # Calculate parameters a, b, and c.
+        a=$(echo "scale=2; ${numerator_a}/${denominator_a}" | bc)
+        b=$(echo "scale=2; (${sum_y}-(${a}*${sum_x}))/${length}" | bc)
+        c=1.00
+        
+        # Calculate error.
+        err=0.0
+        for i in $(seq 0 $((${length} - 1)))
+        do
+            err=$(echo "scale=2; (err+((${y[${i}]}-((${a}*${x[${i}]})+${b}))*(${y[${i}]}-((${a}*${x[${i}]})+${b}))))" | bc)
+        done
+        echo FILE: "$1", a="${a}" b="${b}" c="${c}" err="${err}"
+    fi
+
+    # Freeing the memory
+    unset x
+    unset y
+
+    # Moving to the next argument
+    shift
+done
